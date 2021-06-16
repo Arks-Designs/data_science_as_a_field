@@ -1,0 +1,90 @@
+---
+title: "NYPD Shooting Incident Data Report"
+date: "5/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+```
+
+### Question to answer
+In this report, we will look at whether you are statistically more likely to die at any one block of time in the day after being shot.  Another way to say this is are there any trends or blocks of time where shooting incidents are more fatal.  
+
+### Description and import of data
+The data used in this report is the list of NYC shooting incidents ranging from 2006 to the end of the previous year (2020) provided by the NYPD.  The data was obtained from the [data catalog archive](https://catalog.data.gov/dataset/nypd-shooting-incident-data-historic).
+
+```{r import_nypd_shooting_incident_data, echo=TRUE}
+data_url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+nypd_shooting_incidents <- read_csv(data_url)
+```
+
+### Tidying the data
+After importing the data, we will tidy and parse it such that we are left with a tibble that contains data with the following characteristics:
+
+- Blocks of time
+- Numbers of shooting incidents that occurred in that block
+- Number of shooting incidents in that block that were fatal
+- Ratio of fatal shooting incidents to all shooting incidents in that block
+
+Method for generating this data as well as the first 10 rows are show below.
+
+```{r tidy_data, echo=TRUE}
+filtered_npyd_shooting_incidents <- nypd_shooting_incidents %>%
+  mutate(time_block = hour(OCCUR_TIME))%>%
+  select(time_block, STATISTICAL_MURDER_FLAG) %>%
+  group_by(time_block) %>%
+  summarise(incidents = n(), 
+            fatal_incidents = sum(STATISTICAL_MURDER_FLAG)) %>%
+  mutate(per_fatal = fatal_incidents / incidents)
+
+# First 5 rows of data frame shown below
+
+head(filtered_npyd_shooting_incidents, n=5L)
+```
+
+### Visualizing and modeling the data
+To visualize the data, we will look at two bar plots.  The first will show the number of incidents per time block, color coded to show those that resulted in fatalities.  The second will show the percent fatality per time block.
+
+```{r vis_data_1, echo=TRUE}
+filtered_npyd_shooting_incidents %>%
+  ggplot(aes(fill=fatal_incidents, x=time_block, y=incidents)) + 
+  ggtitle("Number of shooting incidents per hour") +
+  geom_bar(stat="identity", position="stack") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r vis_data_2, echo=TRUE}
+filtered_npyd_shooting_incidents %>%
+  ggplot(aes(x=time_block, y=per_fatal)) + 
+  ggtitle("Percent fatal incidents per hour") +
+  geom_bar(stat="identity") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+### Analysis
+To gain insight into the data, we will generate a box plot of the percent fatalities and look at common statistical measures
+
+```{r data_analysis, echo=TRUE}
+filtered_npyd_shooting_incidents %>%
+  ggplot(aes(x = per_fatal)) +
+  geom_boxplot() + 
+  ggtitle("Percent of Fatal shooting incidents in NYC")
+```
+```{r data_summary, echo=TRUE}
+print(summary(filtered_npyd_shooting_incidents$per_fatal))
+```
+
+### Conclusion and potential biases
+Looking at the visualizations and analysis from this data, we can say that there exists a definitive uptick in percent of shooting incidents which were fatal in the morning hours.  This reaches a peak in the 7-8 am time block where we see an outlier indicating an 11% higher fatality rate.
+
+While this is speculative without doing a deeper dive on how the data was gathered, it is possible that the data is biased in a few ways.  Two that come to mind immediately is that it is possible that data gathered during off hours could have possibly have been entered later when more individuals were around leading to incorrect times.  This could certainly explain why we see a spike in the 7-8 am time slot.  Another area of bias is that areas with lower economic activity could have less resources aimed at accurately recording data which could leave out potentially chucks of incidents.
+
+### Session info
+Session info block shown below
+
+```{r sessionInfo, echo=TRUE}
+sessionInfo()
+```
